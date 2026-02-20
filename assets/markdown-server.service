@@ -1,0 +1,36 @@
+[Unit]
+Description=Markdown 渲染服务
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/path/to/your/project
+
+# 启动命令
+ExecStart=/usr/bin/python3 /path/to/your/project/markdown_server.py
+
+# 环境变量
+Environment="PYTHONUNBUFFERED=1"
+Environment="FLASK_ENV=production"
+Environment="DEPLOYMENT_STAGE=2"
+
+# 重启策略
+Restart=always
+RestartSec=10
+
+# 资源限制
+LimitNOFILE=65536
+
+# 日志
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=markdown-server
+
+# 安全设置
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
