@@ -24,7 +24,7 @@ echo ""
 REPO_NAME="markdown-web-service"
 REPO_DESCRIPTION="Markdown 文档 Web 服务，支持四阶段安全部署"
 REPO_LICENSE="MIT"
-TARGET_DIR="/workspace/markdown-web-service"
+TARGET_DIR="/Users/zhangxiang/markdown-web-service"
 GITHUB_USERNAME="zhangxlab"  # 请修改为你的 GitHub 用户名
 
 # 检查目标目录
