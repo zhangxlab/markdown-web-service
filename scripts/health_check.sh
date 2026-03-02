@@ -13,6 +13,33 @@ NC='\033[0m' # No Color
 # 配置
 PORT="${1:-5000}"
 
+is_port_listening() {
+    local target_port="$1"
+
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -nP -iTCP:"$target_port" -sTCP:LISTEN >/dev/null 2>&1
+        return $?
+    fi
+
+    if command -v ss >/dev/null 2>&1; then
+        ss -ltn 2>/dev/null | grep -Eq "[:.]${target_port}[[:space:]]"
+        return $?
+    fi
+
+    if command -v netstat >/dev/null 2>&1; then
+        netstat -an 2>/dev/null | grep -E 'LISTEN|LISTENING' | grep -Eq "[\\.:]${target_port}([[:space:]]|$)"
+        return $?
+    fi
+
+    return 2
+}
+
+check_endpoint() {
+    local path="$1"
+    curl -s -f -m 5 "http://localhost:${PORT}${path}" > /dev/null 2>&1 || \
+    curl -s -f -m 5 "http://127.0.0.1:${PORT}${path}" > /dev/null 2>&1
+}
+
 echo "=========================================="
 echo "  Markdown Web 服务健康检查"
 echo "=========================================="
@@ -22,24 +49,32 @@ echo ""
 
 # 1. 检查端口监听
 echo -n "1. 检查端口监听..."
-if netstat -tulnp 2>/dev/null | grep -q ":$PORT "; then
+if is_port_listening "$PORT"; then
     echo -e " ${GREEN}✅ 端口正在监听${NC}"
 else
-    echo -e " ${RED}❌ 端口未监听${NC}"
-    exit 1
+    if [ $? -eq 2 ]; then
+        echo -e "${YELLOW} ⚠️  无可用端口检测命令（lsof/ss/netstat）${NC}"
+    else
+        echo -e " ${RED}❌ 端口未监听${NC}"
+        exit 1
+    fi
 fi
 
 # 2. 检查服务状态
 echo -n "2. 检查服务状态..."
-if systemctl is-active --quiet markdown-server 2>/dev/null; then
-    echo -e " ${GREEN}✅ 服务正在运行${NC}"
+if command -v systemctl >/dev/null 2>&1; then
+    if systemctl is-active --quiet markdown-server 2>/dev/null; then
+        echo -e " ${GREEN}✅ 服务正在运行${NC}"
+    else
+        echo -e "${YELLOW}⚠️  服务未通过 Systemd 管理${NC}"
+    fi
 else
-    echo -e "${YELLOW}⚠️  服务未通过 Systemd 管理${NC}"
+    echo -e "${YELLOW}⚠️  当前系统无 systemctl，跳过${NC}"
 fi
 
 # 3. 检查本地访问
 echo -n "3. 检查本地访问..."
-if curl -s -f -m 5 "http://localhost:$PORT/" > /dev/null 2>&1; then
+if check_endpoint "/"; then
     echo -e " ${GREEN}✅ 本地访问正常${NC}"
 else
     echo -e "${RED}❌ 本地访问失败${NC}"
@@ -48,7 +83,7 @@ fi
 
 # 4. 检查健康端点
 echo -n "4. 检查健康端点..."
-if curl -s -f -m 5 "http://localhost:$PORT/health" > /dev/null 2>&1; then
+if check_endpoint "/health"; then
     echo -e " ${GREEN}✅ 健康端点正常${NC}"
 else
     echo -e "${YELLOW}⚠️  健康端点不存在（非致命）${NC}"
@@ -56,7 +91,7 @@ fi
 
 # 5. 检查 API
 echo -n "5. 检查 API..."
-if curl -s -f -m 5 "http://localhost:$PORT/api/files" > /dev/null 2>&1; then
+if check_endpoint "/api/files"; then
     echo -e " ${GREEN}✅ API 正常${NC}"
 else
     echo -e "${RED}❌ API 失败${NC}"
@@ -65,13 +100,17 @@ fi
 
 # 6. 检查日志
 echo -n "6. 检查日志错误..."
-if journalctl -u markdown-server -n 20 2>/dev/null | grep -q "ERROR"; then
-    echo -e "${RED}❌ 日志中发现错误${NC}"
-    echo ""
-    echo "最近的错误："
-    journalctl -u markdown-server -n 20 --no-pager | grep "ERROR" | tail -5
+if command -v journalctl >/dev/null 2>&1; then
+    if journalctl -u markdown-server -n 20 2>/dev/null | grep -q "ERROR"; then
+        echo -e "${RED}❌ 日志中发现错误${NC}"
+        echo ""
+        echo "最近的错误："
+        journalctl -u markdown-server -n 20 --no-pager | grep "ERROR" | tail -5
+    else
+        echo -e "${GREEN}✅ 日志无错误${NC}"
+    fi
 else
-    echo -e "${GREEN}✅ 日志无错误${NC}"
+    echo -e "${YELLOW}⚠️  当前系统无 journalctl，跳过${NC}"
 fi
 
 echo ""

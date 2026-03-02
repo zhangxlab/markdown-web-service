@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ filename }} - Markdown 文档</title>
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f3f4f6; color: #111827; }
+    .layout { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+    .sidebar { background: #111827; color: #e5e7eb; padding: 20px 14px; }
+    .sidebar h2 { margin: 0 0 12px; font-size: 18px; }
+    .sidebar a { color: #93c5fd; text-decoration: none; }
+    .sidebar ul { margin: 0; padding: 0; list-style: none; }
+    .sidebar li { margin: 8px 0; }
+    .content { padding: 24px; background: #fff; margin: 20px; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); min-width: 0; }
+    .meta { color: #6b7280; font-size: 13px; margin-bottom: 16px; }
+    pre { background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 8px; overflow: auto; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { padding-bottom: 8px; }
+      .content { margin: 0; border-radius: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <h2>文档导航</h2>
+      <div style="margin-bottom: 10px;"><a href="/">返回首页</a></div>
+      <ul>
+        {% for file in all_files %}
+        <li><a href="/view/{{ file.path }}">{{ file.name }}</a></li>
+        {% endfor %}
+      </ul>
+    </aside>
+    <main class="content">
+      <h1>{{ filename }}</h1>
+      <div class="meta">路径: {{ filepath }} · 修改时间: {{ modified }} · 大小: {{ size }} bytes</div>
+      <article>{{ content|safe }}</article>
+    </main>
+  </div>
+</body>
+</html>

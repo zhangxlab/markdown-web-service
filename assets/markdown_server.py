@@ -9,7 +9,7 @@ Markdown 渲染服务
 3. 运行: python3 markdown_server.py
 """
 
-from flask import Flask, render_template, send_from_directory, jsonify
+from flask import Flask, render_template, jsonify
 from flask_cors import CORS
 import markdown
 import os
@@ -17,26 +17,64 @@ from pathlib import Path
 import re
 from datetime import datetime
 
-app = Flask(__name__)
+ASSETS_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = ASSETS_DIR.parent
+TEMPLATES_DIR = ASSETS_DIR / "templates"
+if not TEMPLATES_DIR.exists():
+    fallback_templates = PROJECT_DIR / "templates"
+    if fallback_templates.exists():
+        TEMPLATES_DIR = fallback_templates
+
+app = Flask(__name__, template_folder=str(TEMPLATES_DIR))
 CORS(app)
 
 # 配置 - 根据需要修改
-DOCS_DIR = Path("/root/clawd/freqtrade-research")  # 修改为你的文档目录
-PORT = 5000  # 修改为你想要的端口
+DEFAULT_DOCS_DIR = PROJECT_DIR / "docs"
+DOCS_DIR = Path(os.environ.get("DOCS_DIR", str(DEFAULT_DOCS_DIR))).expanduser()
+try:
+    PORT = int(os.environ.get("PORT", "5000"))
+except ValueError:
+    PORT = 5000
 
 def get_file_number(filepath):
     """从文件名中提取数字用于排序"""
     match = re.match(r'(\d+)', filepath.name)
     return int(match.group(1)) if match else 999
 
+def get_preview_text(filepath, max_chars):
+    """提取 Markdown 文档预览文本"""
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+    except OSError:
+        return ""
+
+    # 去掉代码块和常见 Markdown 标记，保留可读片段
+    content = re.sub(r'```[\s\S]*?```', ' ', content)
+    content = re.sub(r'`[^`]*`', ' ', content)
+    content = re.sub(r'!\[[^\]]*\]\([^\)]*\)', ' ', content)
+    content = re.sub(r'\[[^\]]*\]\([^\)]*\)', ' ', content)
+    content = re.sub(r'^\s{0,3}#{1,6}\s*', '', content, flags=re.MULTILINE)
+    content = re.sub(r'[*_>#-]+', ' ', content)
+    content = re.sub(r'\s+', ' ', content).strip()
+
+    if len(content) <= max_chars:
+        return content
+    return content[:max_chars].rstrip() + "..."
+
 def get_file_info(filepath):
     """获取文件信息"""
     stat = filepath.stat()
+    preview_short = get_preview_text(filepath, 50)
+    preview_long = get_preview_text(filepath, 300)
     return {
         'name': filepath.name,
         'path': str(filepath.relative_to(DOCS_DIR)),
         'size': stat.st_size,
         'modified': datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S'),
+        'preview': preview_long,
+        'preview_short': preview_short,
+        'preview_long': preview_long,
     }
 
 def render_markdown(filepath):
@@ -121,7 +159,7 @@ def api_file(filepath):
         content = f.read()
 
     return jsonify({
-        'name': filepath.name,
+        'name': full_path.name,
         'path': filepath,
         'content': content
     })
@@ -133,8 +171,7 @@ def health():
 
 if __name__ == '__main__':
     # 创建模板目录
-    templates_dir = Path(__file__).parent / 'templates'
-    templates_dir.mkdir(exist_ok=True)
+    TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 
     # 检查文档目录
     if not DOCS_DIR.exists():
